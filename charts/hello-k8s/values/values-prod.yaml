@@ -1,0 +1,39 @@
+# Default values for hello-k8s production deployment.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Namespace for the production deployment
+namespace: app-production-alb
+
+# Replica count for the production deployment
+replicaCount: 2
+
+# Production image configuration
+image: 
+  repository: tiagovedana/hello-k8s                     # Docker repository for the production image
+  tag: prod                                             # Production image tag
+  pullPolicy: IfNotPresent                              # Image pull policy for production
+
+# Production application configuration
+app: 
+  name: hello-world-production-alb                      # Application name for production
+  port: 5000                                            # Port on which the application listens in production
+  env: production                                       # Environment variable for production
+
+# Service configuration for the production deployment
+service: 
+  type: ClusterIP                                       # Service type for production  
+  port: 80                                              # Production service port 
+
+# Production Ingress configuration
+ingress: 
+  enabled: true                                                                                               # Enable Ingress for production
+  className: alb-production                                                                                   # Ingress class for production ALB
+  certificateArn: arn:aws:acm:us-east-1:688567307365:certificate/6b6f846b-571c-4c55-a140-e9217164e90a         # ACM certificate ARN for production Ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing                                                         # Ingress scheme for production
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'                                                # Ingress listen ports for production  
+    alb.ingress.kubernetes.io/target-type: ip                                                                 # Target type for production Ingress
+  path: /                                                                                                     # Path for production Ingress
+  pathType: Prefix                                                                                            # Path type for production Ingress
+  host: hello-world-alb.tvedana.com                                                                           # Host for production Ingress

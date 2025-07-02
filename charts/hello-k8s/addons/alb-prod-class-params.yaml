@@ -1,0 +1,9 @@
+# alb-staging-class-params.yaml
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: IngressClassParams
+metadata:
+  name: alb-production
+spec:
+  scheme: internet-facing
+  group:
+    name: staging

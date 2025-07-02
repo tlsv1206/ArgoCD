@@ -1,0 +1,55 @@
+aws eks update-kubeconfig --region us-east-1 --name stage-eks-cluster
+
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+
+kubectl get pods -n cert-manager
+
+kubectl apply -f ./addons/tls-issuer.yaml
+
+kubectl get certificate -n app-staging
+kubectl describe certificate hello-world-tls -n app-staging
+kubectl get secret hello-world-tls -n app-staging
+
+kubectl get clusterissuer
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+helm upgrade --install nginx-ingress-staging ingress-nginx/ingress-nginx \
+  --namespace app-staging --create-namespace \
+  --set controller.ingressClass=nginx-staging \
+  --set controller.ingressClassResource.name=nginx-staging \
+  --set controller.ingressClassResource.enabled=true \
+  --set controller.service.type=LoadBalancer \
+  --set controller.replicaCount=2 \
+  --set controller.publishService.enabled=true
+
+kubectl label namespace app-staging app.kubernetes.io/managed-by=Helm --overwrite
+
+kubectl annotate namespace app-staging \
+  meta.helm.sh/release-name=hello-world-staging \
+  meta.helm.sh/release-namespace=app-staging \
+  --overwrite
+
+helm install hello-world-staging ./ --namespace app-staging -f ./values/values-staging.yaml
+
+kubectl get certificate -n app-staging
+kubectl describe certificate hello-world-tls -n app-staging
+kubectl get challenge -n app-staging
+kubectl describe challenge hello-world-tls-1-924580055-104154696 -n app-staging
+kubectl get secret hello-world-tls -n app-staging
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+helm upgrade --install nginx-ingress-production ingress-nginx/ingress-nginx \
+  --namespace app-production --create-namespace \
+  --set controller.ingressClass=nginx-production \
+  --set controller.ingressClassResource.name=nginx-production \
+  --set controller.ingressClassResource.enabled=true \
+  --set controller.service.type=LoadBalancer \
+  --set controller.replicaCount=2 \
+  --set controller.publishService.enabled=true
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo update
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace

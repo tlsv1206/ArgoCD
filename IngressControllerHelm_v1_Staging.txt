@@ -1,0 +1,100 @@
+# Update local kubeconfig to interact with the correct EKS cluster
+aws eks update-kubeconfig --region us-east-1 --name stage-eks-cluster
+
+# STEP 1: Request an ACM certificate for the staging domain using DNS validation
+aws acm request-certificate \
+  --domain-name hello-world-staging.tvedana.com \
+  --validation-method DNS \
+  --region us-east-1
+
+# List ACM certificates to verify if the request was successful
+aws acm list-certificates --region us-east-1
+
+# STEP 2: Add the EKS Helm repository and update the repo list
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+
+# STEP 3: Associate an IAM OIDC provider with your EKS cluster (required for IRSA)
+eksctl utils associate-iam-oidc-provider \
+  --region us-east-1 \
+  --cluster stage-eks-cluster \
+  --approve
+
+# STEP 4: Download the IAM policy file required by the AWS Load Balancer Controller
+curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.6.0/docs/install/iam_policy.json
+
+# STEP 5: Check if a policy named 'AWSLoadBalancerControllerIAMPolicy' already exists
+aws iam list-policies --scope Local | grep AWSLoadBalancerControllerIAMPolicy
+
+# STEP 6: Create a new version of the IAM policy and set it as the default
+aws iam create-policy-version \
+  --policy-arn arn:aws:iam::688567307365:policy/AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://iam-policy.json \
+  --set-as-default
+
+# STEP 7a: (Cleanup) Delete any existing service account for the AWS Load Balancer Controller
+eksctl delete iamserviceaccount \
+  --cluster stage-eks-cluster \
+  --namespace aws-alb-system \
+  --name aws-load-balancer-controller
+
+# STEP 7b: Create a new service account for the ALB Controller and attach the IAM policy
+eksctl create iamserviceaccount \
+  --cluster stage-eks-cluster \
+  --namespace aws-alb-system \
+  --name aws-load-balancer-controller \
+  --attach-policy-arn arn:aws:iam::688567307365:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve
+
+# Verify the service account exists and is properly configured
+kubectl get serviceaccount aws-load-balancer-controller -n aws-alb-system -o yaml
+
+# STEP 8: Install the AWS Load Balancer Controller via Helm in the kube-system namespace
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  --namespace aws-alb-system \
+  --set clusterName=stage-eks-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1 \
+  --set vpcId=vpc-033aecedcb956eeb2 \
+  --set ingressClass=alb
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  --namespace aws-alb-system \
+  --create-namespace \
+  --set clusterName=stage-eks-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1 \
+  --set vpcId=vpc-07b6d41b073ac1e0d \
+  --set ingressClass=ignore-me \
+  --set ingressClassParams.create=false \
+  --set enableAdmissionWebhook=true \
+  --set webhook.create=true
+
+kubectl get pods -n aws-alb-system
+
+kubectl get svc -n aws-alb-system
+kubectl get endpoints -n aws-alb-system
+
+kubectl apply -f alb-staging-ingressclass.yaml
+kubectl apply -f alb-prod-ingressclass.yaml
+kubectl apply -f alb-staging-class-params.yaml
+kubectl apply -f alb-prod-class-params.yaml
+
+
+# Verify that the webhook service endpoint for ALB Controller is active
+kubectl get endpoints aws-load-balancer-webhook-service -n alb-staging-system
+
+# Check the ALB Controller deployment status
+kubectl get deployment -n alb-staging-system -l app.kubernetes.io/name=aws-load-balancer-controller 
+kubectl describe deployment -n alb-staging-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+# Optionally restart the ALB Controller deployment if changes were made
+kubectl rollout restart deployment aws-load-balancer-controller -n alb-staging-system
+
+# STEP 9: Deploy the staging version of the Hello World application
+helm upgrade hello-world-staging-alb ./ \
+  --namespace app-staging-alb \
+  --create-namespace \
+  -f ./values/values-staging.yaml
