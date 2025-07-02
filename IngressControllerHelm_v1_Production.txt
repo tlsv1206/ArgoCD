@@ -1,0 +1,93 @@
+# Update local kubeconfig to interact with the correct EKS cluster
+aws eks update-kubeconfig --region us-east-1 --name stage-eks-cluster
+
+# STEP 1: Request an ACM certificate for the staging domain using DNS validation
+aws acm request-certificate \
+  --domain-name hello-world-staging.tvedana.com \
+  --validation-method DNS \
+  --region us-east-1
+
+# List ACM certificates to verify if the request was successful
+aws acm list-certificates --region us-east-1
+
+# STEP 2: Add the EKS Helm repository and update the repo list
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+
+# STEP 3: Associate an IAM OIDC provider with your EKS cluster
+eksctl utils associate-iam-oidc-provider \
+  --region us-east-1 \
+  --cluster stage-eks-cluster \
+  --approve
+
+# STEP 4: Download the IAM policy file required by the AWS Load Balancer Controller
+curl -o iam-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.6.0/docs/install/iam_policy.json
+
+# STEP 5: Check if the policy already exists
+aws iam list-policies --scope Local | grep AWSLoadBalancerControllerIAMPolicy
+
+# STEP 6: Create a new version of the IAM policy and set it as the default
+aws iam create-policy-version \
+  --policy-arn arn:aws:iam::688567307365:policy/AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://iam-policy.json \
+  --set-as-default
+
+# STEP 7a: (Cleanup) Delete any existing service account for the AWS Load Balancer Controller
+eksctl delete iamserviceaccount \
+  --cluster stage-eks-cluster \
+  --namespace alb-prod-system \
+  --name aws-load-balancer-controller-prod
+
+# STEP 7b: Create a new service account for the ALB Controller and attach the IAM policy
+eksctl create iamserviceaccount \
+  --cluster stage-eks-cluster \
+  --namespace alb-prod-system \
+  --name aws-load-balancer-controller-prod \
+  --attach-policy-arn arn:aws:iam::688567307365:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve
+
+# Verify the service account exists and is properly configured
+kubectl get serviceaccount aws-load-balancer-controller-prod -n alb-prod-system -o yaml
+
+# STEP 8: Install the AWS Load Balancer Controller via Helm in the kube-system namespace
+helm install aws-load-balancer-controller-prod eks/aws-load-balancer-controller \
+  --namespace alb-prod-system  \
+  --set clusterName=stage-eks-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller-prod \
+  --set region=us-east-1 \
+  --set vpcId=vpc-033aecedcb956eeb2 \
+  --set ingressClass=alb-prod \
+  --set webhookCert.secretName=aws-load-balancer-tls-prod
+
+helm install alb-prod-controller eks/aws-load-balancer-controller \
+  --namespace alb-prod-system \
+  --create-namespace \
+  --set clusterName=stage-eks-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller-prod \
+  --set region=us-east-1 \
+  --set vpcId=vpc-033aecedcb956eeb2 \
+  --set ingressClass=alb-prod \
+  --set ingressClassParams.name=alb-prod \
+  --set ingressClassParams.create=true \
+  --set ingressClassParams.default=false \
+  --set nameOverride=alb-prod-controller \
+  --set fullnameOverride=alb-prod-controller \
+  --set webhook.create=false
+
+# Verify that the webhook service endpoint for ALB Controller is active
+kubectl get endpoints aws-load-balancer-webhook-service -n kube-system
+
+# Check the ALB Controller deployment status
+kubectl get deployment -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller 
+kubectl describe deployment -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+# Optionally restart the ALB Controller deployment if changes were made
+kubectl rollout restart deployment aws-load-balancer-controller -n kube-system
+
+# STEP 9: Deploy the staging version of the Hello World application
+helm upgrade hello-world-production-alb ./ \
+  --namespace app-production-alb \
+  --create-namespace \
+  -f ./values/values-prod.yaml
