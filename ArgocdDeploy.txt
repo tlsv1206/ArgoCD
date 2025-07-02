@@ -1,0 +1,70 @@
+
+argocd login a2270712d03554fe18fefa3b10f60273-1136706927.us-east-1.elb.amazonaws.com --username admin --password k5hpmsrdoXcW5MBp --insecure
+
+argocd app create my-helm-app-staging \
+  --repo https://github.com/tlsv1206/ArgoCD.git \
+  --path charts/hello-k8s \
+  --revision staging \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace default \
+  --values values/values-staging.yaml \
+  --sync-policy automated
+
+argocd app create my-helm-app-production \
+  --repo https://github.com/tlsv1206/ArgoCD.git \
+  --path charts/hello-k8s \
+  --revision staging \
+  --dest-server https://kubernetes.default.svc \
+  --dest-namespace default \
+  --values values/values-prod.yaml \
+  --sync-policy manual
+
+Authentication
+
+Command	Description
+argocd login <ARGOCD_SERVER>	Log in to the ArgoCD API server
+argocd logout <ARGOCD_SERVER>	Log out from the ArgoCD server
+argocd context	View or switch contexts
+argocd account list	List ArgoCD accounts
+argocd account get-user-info	Show details about the current user
+
+Application Management
+
+Command	Description
+argocd app list	List all ArgoCD applications
+argocd app get <APP_NAME>	Get detailed info about an app
+argocd app create	Create a new application
+argocd app update <APP_NAME>	Update the app spec (e.g., revision, values)
+argocd app delete <APP_NAME>	Delete an application
+
+Application Sync & Refresh
+
+Command	Description
+argocd app sync <APP_NAME>	Sync app to the desired state (apply manifests)
+argocd app wait <APP_NAME>	Wait until app is healthy and synced
+argocd app refresh <APP_NAME>	Force refresh the application status
+argocd app rollback <APP_NAME> <REVISION>	Rollback to a previous revision
+
+Application Health & Status
+
+Command	Description
+argocd app status <APP_NAME>	View the sync and health status
+argocd app history <APP_NAME>	View revision history
+argocd app diff <APP_NAME>	Show diffs between desired and live state
+
+🔍 Repositories & Clusters
+
+Command	Description
+argocd repo list	List configured Git repositories
+argocd repo add	Add a new Git repository
+argocd repo rm <URL>	Remove a Git repository
+argocd cluster list	List registered clusters
+argocd cluster add <CONTEXT>	Register a new Kubernetes cluster
+
+🛠️ Projects
+
+Command	Description
+argocd proj list	List ArgoCD projects
+argocd proj create	Create a new project
+argocd proj delete	Delete a project
+argocd proj get <PROJECT_NAME>	View project details
