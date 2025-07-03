@@ -6,7 +6,7 @@
 namespace: app-staging-alb
 
 # Replica count for the staging deployment
-replicaCount: 1
+replicaCount: 3
 
 # Staging image configuration
 image:
