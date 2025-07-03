@@ -6,7 +6,7 @@
 namespace: app-production-alb
 
 # Replica count for the production deployment
-replicaCount: 2
+replicaCount: 4
 
 # Production image configuration
 image: 
