@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # Namespace for the staging deployment
-namespace: app-staging-alb
+namespace: app-argocd
 
 # Replica count for the staging deployment
 replicaCount: 2
@@ -16,7 +16,7 @@ image:
 
 # Staging application configuration
 app:
-  name: hello-world-staging-alb                                                                             # Application name for staging
+  name: hello-world-argocd-staging                                                                       # Application name for staging
   port: 5000                                                                                                # Port on which the application listens in staging
   env: staging                                                                                              # Environment variable for staging 
 
