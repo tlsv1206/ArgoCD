@@ -36,4 +36,4 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip                                                                # Target type for staging Ingress
   path: /                                                                                                    # Path for staging Ingress
   pathType: Prefix                                                                                           # Path type for staging Ingress
-  host: hello-world-staging-alb.tvedana.com                                                                  # Host for staging Ingress
+  host: argocd-staging.tvedana.com                                                                  # Host for staging Ingress
