@@ -28,7 +28,7 @@ service:
 # Staging Ingress configuration
 ingress:
   enabled: true                                                                                              # Enable Ingress for staging  
-  className: alb-staging                                                                                     # Ingress class for staging ALB 
+  className: alb                                                                                    # Ingress class for staging ALB 
   certificateArn: arn:aws:acm:us-east-1:688567307365:certificate/6b6f846b-571c-4c55-a140-e9217164e90a        # ACM certificate ARN for staging Ingress
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing                                                        # Ingress scheme for staging   
